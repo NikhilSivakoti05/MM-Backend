@@ -1,0 +1,60 @@
+### Java ###
+*.class
+*.jar
+*.war
+*.ear
+
+### Logs ###
+*.log
+logs/
+log/
+
+### Maven ###
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### Gradle ###
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+.gradle/
+out/
+
+### STS / Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Environment files ###
+.env
+*.env
+
+### OS-specific ###
+.DS_Store
+Thumbs.db
+
+### Temporary files ###
+*.tmp
+*.bak
+*.swp
