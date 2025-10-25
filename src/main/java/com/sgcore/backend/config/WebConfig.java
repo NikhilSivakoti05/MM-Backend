@@ -24,7 +24,7 @@ public class WebConfig implements WebMvcConfigurer {
                         
                         "http://127.0.0.1:5173",
                         "https://machine-mechanics-frontend.vercel.app",
-                        "http://127.0.0.1:8080"
+                        "http://127.0.0.1:8099"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
