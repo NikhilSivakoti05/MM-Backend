@@ -1,139 +1,109 @@
 package com.sgcore.backend.controller;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
-
+import com.sgcore.backend.model.FAQ;
 import com.sgcore.backend.model.Product;
 import com.sgcore.backend.service.ProductService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Base64;
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/products")
-@CrossOrigin(origins = {
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://machine-mechanics-frontend.vercel.app",
-        "https://machine-mechanics-frontend-hz6uq0apg.vercel.app"
-})
+
 public class ProductController {
 
     @Autowired
     private ProductService productService;
 
-    private static final String UPLOAD_DIR = "uploads/";
+    // CREATE PRODUCT
+    @PostMapping
+    public Product addProduct(
+            @RequestParam("name") String name,
+            @RequestParam("description") String description,
+            @RequestParam(value = "price", required = false) Double price,
+            @RequestParam(value = "images", required = false) MultipartFile[] images,
+            @RequestParam(value = "faqs", required = false) String faqsJson
+    ) throws Exception {
 
-    // === SINGLE IMAGE UPLOAD ===
-    @PostMapping("/upload")
-    public ResponseEntity<Map<String, Object>> uploadImage(@RequestParam("file") MultipartFile file) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            Files.createDirectories(Paths.get(UPLOAD_DIR));
+        Product product = new Product();
+        product.setName(name);
+        product.setDescription(description);
+        product.setPrice(price);
 
-            String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            Path filePath = Paths.get(UPLOAD_DIR + fileName);
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-            // ✅ Dynamically determine base URL
-            String baseUrl = System.getenv("BASE_URL");
-            if (baseUrl == null || baseUrl.isEmpty()) {
-                baseUrl = "http://localhost:8099"; // fallback for local development
+        // MULTIPLE IMAGES
+        List<String> base64Images = new ArrayList<>();
+        if (images != null) {
+            for (MultipartFile img : images) {
+                base64Images.add(Base64.getEncoder().encodeToString(img.getBytes()));
             }
-            String imageUrl = baseUrl + "/uploads/" + fileName;
-
-            response.put("message", "File uploaded successfully");
-            response.put("fileUrl", imageUrl);
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            response.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(response);
         }
+        product.setImagesBase64(base64Images);
+
+        // FAQs
+        if (faqsJson != null && !faqsJson.isEmpty()) {
+            List<FAQ> faqList = ProductService.convertFaqJsonToList(faqsJson);
+            product.setFaqs(faqList);
+        }
+
+        return productService.addProduct(product);
     }
 
-    // === MULTIPLE IMAGE UPLOAD ===
-    @PostMapping("/upload/multiple")
-    public ResponseEntity<Map<String, Object>> uploadMultipleImages(@RequestParam("files") MultipartFile[] files) {
-        Map<String, Object> response = new HashMap<>();
-        List<String> urls = new ArrayList<>();
-
-        try {
-            Files.createDirectories(Paths.get(UPLOAD_DIR));
-
-            // ✅ Same dynamic base URL logic here
-            String baseUrl = System.getenv("BASE_URL");
-            if (baseUrl == null || baseUrl.isEmpty()) {
-                baseUrl = "http://localhost:8099";
-            }
-
-            for (MultipartFile file : files) {
-                if (file.isEmpty()) continue;
-
-                String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-                Path filePath = Paths.get(UPLOAD_DIR + fileName);
-                Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-                urls.add(baseUrl + "/uploads/" + fileName);
-            }
-
-            response.put("uploadedFiles", urls);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            response.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(response);
-        }
-    }
-
-    // === CRUD ===
+    // GET ALL
     @GetMapping
     public List<Product> getAllProducts() {
         return productService.getAllProducts();
     }
 
+    // GET PRODUCT BY ID (FIXED)
     @GetMapping("/{id}")
-    public Product getProductById(@PathVariable String id) {
-        return productService.getProductById(id);
+    public ResponseEntity<Product> getProductById(@PathVariable String id) {
+        Product p = productService.getProductById(id);
+        if (p == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(p);
     }
 
-    @PostMapping
-    public Product addProduct(@RequestBody Product product) {
-        return productService.addProduct(product);
-    }
-
+    // UPDATE PRODUCT
     @PutMapping("/{id}")
-    public ResponseEntity<Product> updateProduct(@PathVariable String id, @RequestBody Product updatedProduct) {
-        Product existingProduct = productService.getProductById(id);
-        if (existingProduct == null) {
-            return ResponseEntity.notFound().build();
+    public ResponseEntity<Product> updateProduct(
+            @PathVariable String id,
+            @RequestParam("name") String name,
+            @RequestParam("description") String description,
+            @RequestParam(value = "price", required = false) Double price,
+            @RequestParam(value = "images", required = false) MultipartFile[] images,
+            @RequestParam(value = "faqs", required = false) String faqsJson
+    ) throws Exception {
+
+        Product existing = productService.getProductById(id);
+        if (existing == null) return ResponseEntity.notFound().build();
+
+        existing.setName(name);
+        existing.setDescription(description);
+        existing.setPrice(price);
+
+        // Replace images only if provided
+        if (images != null) {
+            List<String> base64Images = new ArrayList<>();
+            for (MultipartFile img : images) {
+                base64Images.add(Base64.getEncoder().encodeToString(img.getBytes()));
+            }
+            existing.setImagesBase64(base64Images);
         }
 
-        existingProduct.setName(updatedProduct.getName());
-        existingProduct.setDescription(updatedProduct.getDescription());
-        existingProduct.setPrice(updatedProduct.getPrice());
-        existingProduct.setImageUrl(updatedProduct.getImageUrl());
+        // FAQs
+        if (faqsJson != null && !faqsJson.isEmpty()) {
+            List<FAQ> faqList = ProductService.convertFaqJsonToList(faqsJson);
+            existing.setFaqs(faqList);
+        }
 
-        Product saved = productService.addProduct(existingProduct);
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(productService.addProduct(existing));
     }
 
+    // DELETE PRODUCT
     @DeleteMapping("/{id}")
     public void deleteProduct(@PathVariable String id) {
         productService.deleteProduct(id);
