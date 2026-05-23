@@ -8,14 +8,15 @@ import java.util.List;
 @Document(collection = "products")
 public class Product {
 
-    @MongoId               // <-- Correct mapping for MongoDB _id
-    private String id;     // <-- Your frontend uses this
+    @MongoId
+    private String id;
 
     private String name;
     private String description;
     private Double price;
 
-    private List<String> imagesBase64;
+    // ImageKit URLs
+    private List<String> imageUrls;
 
     private List<FAQ> faqs;
 
@@ -33,8 +34,8 @@ public class Product {
     public Double getPrice() { return price; }
     public void setPrice(Double price) { this.price = price; }
 
-    public List<String> getImagesBase64() { return imagesBase64; }
-    public void setImagesBase64(List<String> imagesBase64) { this.imagesBase64 = imagesBase64; }
+    public List<String> getImageUrls() { return imageUrls; }
+    public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
 
     public List<FAQ> getFaqs() { return faqs; }
     public void setFaqs(List<FAQ> faqs) { this.faqs = faqs; }

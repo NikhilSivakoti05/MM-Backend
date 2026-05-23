@@ -1,21 +1,14 @@
 package com.sgcore.backend.controller;
 
-import com.sgcore.backend.model.ApplicationDoc;
-import com.sgcore.backend.repository.ApplicationRepository;
-import com.sgcore.backend.service.ApplicationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.core.io.InputStreamResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import com.sgcore.backend.model.ApplicationDoc;
+import com.sgcore.backend.service.ApplicationService;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.multipart.MultipartHttpServletRequest;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Iterator;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.List;
 
 @RestController
@@ -23,103 +16,113 @@ import java.util.List;
 public class ApplicationsController {
 
     private final ApplicationService applicationService;
+
     private final ObjectMapper objectMapper;
-    private final ApplicationRepository applicationRepository;
 
     public ApplicationsController(
+
             ApplicationService applicationService,
-            ObjectMapper objectMapper,
-            ApplicationRepository applicationRepository
+
+            ObjectMapper objectMapper
+
     ) {
+
         this.applicationService = applicationService;
+
         this.objectMapper = objectMapper;
-        this.applicationRepository = applicationRepository;
     }
 
-    // --------------------------------------------
-    // VIEW ALL APPLICATIONS
-    // --------------------------------------------
+    // =========================
+    // GET ALL APPLICATIONS
+    // =========================
+
     @GetMapping
-    public List<ApplicationDoc> list() {
-        return applicationRepository.findAll();
-    }
+    public ResponseEntity<List<ApplicationDoc>>
+    getAllApplications() {
 
-    // --------------------------------------------
-    // GET ONE APPLICATION
-    // --------------------------------------------
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getOne(@PathVariable String id) {
-        return applicationRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    // --------------------------------------------
-    // FILE DOWNLOAD ENDPOINT (FINAL & CORRECT)
-    // --------------------------------------------
-    @GetMapping("/file/{fileId}")
-    public ResponseEntity<?> downloadFile(@PathVariable String fileId) {
         try {
-            var resource = applicationService.getFileResource(fileId);
-            if (resource == null) return ResponseEntity.notFound().build();
 
-            String contentType = resource.getContentType();
-            if (contentType == null) contentType = "application/pdf";
+            List<ApplicationDoc> apps =
+                    applicationService.getAllApplications();
 
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "inline; filename=\"" + resource.getFilename() + "\"")
-                    .contentType(MediaType.parseMediaType(contentType))
-                    .body(new InputStreamResource(resource.getInputStream()));
+            return ResponseEntity.ok(apps);
 
         } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("Error downloading: " + e.getMessage());
+
+            return ResponseEntity
+                    .status(500)
+                    .body(null);
         }
     }
 
-    // --------------------------------------------
-    // SUBMIT APPLICATION  (YOUR ORIGINAL CODE)
-    // --------------------------------------------
-    @PostMapping(consumes = {"multipart/form-data"})
-    public ResponseEntity<?> submit(MultipartHttpServletRequest request) {
+    // =========================
+    // APPLY JOB
+    // =========================
+
+    @PostMapping(
+            consumes = "multipart/form-data"
+    )
+    public ResponseEntity<?> apply(
+
+            @RequestPart("application")
+            String applicationJson,
+
+            @RequestPart(
+                    value = "files",
+                    required = false
+            )
+            List<MultipartFile> files
+
+    ) {
+
         try {
-            String appJson = request.getParameter("application");
 
-            if (appJson == null) {
-                MultipartFile jsonFile = request.getFile("application");
+            ApplicationDoc appDoc =
+                    objectMapper.readValue(
+                            applicationJson,
+                            ApplicationDoc.class
+                    );
 
-                if (jsonFile == null || jsonFile.isEmpty()) {
-                    return ResponseEntity.badRequest().body("Missing 'application' part");
-                }
-                appJson = new String(jsonFile.getBytes(), StandardCharsets.UTF_8);
-            }
-
-            ApplicationDoc appDoc = objectMapper.readValue(appJson, ApplicationDoc.class);
-
-            List<MultipartFile> files = new ArrayList<>();
-
-            Iterator<String> names = request.getFileNames();
-            while (names.hasNext()) {
-                String partName = names.next();
-
-                if ("application".equals(partName)) continue;
-
-                List<MultipartFile> foundFiles = request.getFiles(partName);
-                if (foundFiles != null) {
-                    files.addAll(foundFiles);
-                }
-            }
-
-            ApplicationDoc saved = applicationService.saveApplication(appDoc, files);
+            ApplicationDoc saved =
+                    applicationService.saveApplication(
+                            appDoc,
+                            files
+                    );
 
             return ResponseEntity.ok(saved);
 
-        } catch (IOException ex) {
-            return ResponseEntity.status(500).body("Error processing JSON: " + ex.getMessage());
+        } catch (Exception e) {
 
-        } catch (Exception ex) {
-            return ResponseEntity.status(500).body("Error saving: " + ex.getMessage());
+            e.printStackTrace();
+
+            return ResponseEntity
+                    .status(500)
+                    .body(e.getMessage());
+        }
+    }
+
+    // =========================
+    // DELETE APPLICATION
+    // =========================
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteApplication(
+
+            @PathVariable String id
+
+    ) {
+
+        try {
+
+            applicationService.deleteApplication(id);
+
+            return ResponseEntity.ok().build();
+
+        } catch (Exception e) {
+
+            return ResponseEntity
+                    .status(500)
+                    .body(e.getMessage());
         }
     }
 }

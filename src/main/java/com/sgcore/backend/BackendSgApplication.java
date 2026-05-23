@@ -8,7 +8,6 @@ public class BackendSgApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(BackendSgApplication.class, args);
-		System.out.println("nikhil");
 	}
 
 }

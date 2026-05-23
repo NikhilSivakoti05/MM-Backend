@@ -1,111 +1,224 @@
 package com.sgcore.backend.controller;
 
-import com.sgcore.backend.model.FAQ;
 import com.sgcore.backend.model.Product;
+
+import com.sgcore.backend.service.ProductImageService;
 import com.sgcore.backend.service.ProductService;
+
 import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.web.bind.annotation.*;
+
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Base64;
 import java.util.ArrayList;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/products")
-
 public class ProductController {
 
     @Autowired
     private ProductService productService;
 
+    @Autowired
+    private ProductImageService productImageService;
+
+
+    // =========================
     // CREATE PRODUCT
-    @PostMapping
+    // =========================
+
+    @PostMapping(consumes = "multipart/form-data")
     public Product addProduct(
-            @RequestParam("name") String name,
-            @RequestParam("description") String description,
-            @RequestParam(value = "price", required = false) Double price,
-            @RequestParam(value = "images", required = false) MultipartFile[] images,
-            @RequestParam(value = "faqs", required = false) String faqsJson
+
+            @RequestParam String name,
+
+            @RequestParam String description,
+
+            @RequestParam(required = false)
+            Double price,
+
+            @RequestParam(required = false)
+            MultipartFile[] images,
+
+            @RequestParam(required = false)
+            String faqs
+
     ) throws Exception {
 
         Product product = new Product();
+
         product.setName(name);
         product.setDescription(description);
         product.setPrice(price);
 
-        // MULTIPLE IMAGES
-        List<String> base64Images = new ArrayList<>();
+        // =========================
+        // IMAGE UPLOAD
+        // =========================
+
+        List<String> imageUrls = new ArrayList<>();
+
         if (images != null) {
+
             for (MultipartFile img : images) {
-                base64Images.add(Base64.getEncoder().encodeToString(img.getBytes()));
+
+                String url =
+                        productImageService.uploadImage(img);
+
+                imageUrls.add(url);
             }
         }
-        product.setImagesBase64(base64Images);
 
-        // FAQs
-        if (faqsJson != null && !faqsJson.isEmpty()) {
-            List<FAQ> faqList = ProductService.convertFaqJsonToList(faqsJson);
-            product.setFaqs(faqList);
+        product.setImageUrls(imageUrls);
+
+        // =========================
+        // FAQS
+        // =========================
+
+        if (faqs != null && !faqs.isEmpty()) {
+
+            product.setFaqs(
+                    ProductService.convertFaqJsonToList(faqs)
+            );
         }
 
-        return productService.addProduct(product);
+        return productService.save(product);
     }
 
-    // GET ALL
+
+    // =========================
+    // GET ALL PRODUCTS
+    // =========================
+
     @GetMapping
-    public List<Product> getAllProducts() {
-        return productService.getAllProducts();
+    public List<Product> getAll() {
+
+        return productService.getAll();
     }
 
-    // GET PRODUCT BY ID (FIXED)
+
+    // =========================
+    // GET PRODUCT BY ID
+    // =========================
+
     @GetMapping("/{id}")
-    public ResponseEntity<Product> getProductById(@PathVariable String id) {
-        Product p = productService.getProductById(id);
-        if (p == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(p);
+    public ResponseEntity<Product> getById(
+            @PathVariable String id
+    ) {
+
+        Product product =
+                productService.getById(id);
+
+        if (product == null) {
+
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(product);
     }
 
+
+    // =========================
     // UPDATE PRODUCT
-    @PutMapping("/{id}")
-    public ResponseEntity<Product> updateProduct(
+    // =========================
+
+    @PutMapping(value = "/{id}", consumes = "multipart/form-data")
+    public ResponseEntity<Product> update(
+
             @PathVariable String id,
-            @RequestParam("name") String name,
-            @RequestParam("description") String description,
-            @RequestParam(value = "price", required = false) Double price,
-            @RequestParam(value = "images", required = false) MultipartFile[] images,
-            @RequestParam(value = "faqs", required = false) String faqsJson
+
+            @RequestParam String name,
+
+            @RequestParam String description,
+
+            @RequestParam(required = false)
+            Double price,
+
+            @RequestParam(required = false)
+            MultipartFile[] images,
+
+            @RequestParam(required = false)
+            String faqs
+
     ) throws Exception {
 
-        Product existing = productService.getProductById(id);
-        if (existing == null) return ResponseEntity.notFound().build();
+        Product existing =
+                productService.getById(id);
+
+        if (existing == null) {
+
+            return ResponseEntity.notFound().build();
+        }
 
         existing.setName(name);
         existing.setDescription(description);
         existing.setPrice(price);
 
-        // Replace images only if provided
+        // =========================
+        // NEW IMAGE UPLOADS
+        // =========================
+
         if (images != null) {
-            List<String> base64Images = new ArrayList<>();
-            for (MultipartFile img : images) {
-                base64Images.add(Base64.getEncoder().encodeToString(img.getBytes()));
+
+            List<String> urls =
+                    existing.getImageUrls();
+
+            if (urls == null) {
+
+                urls = new ArrayList<>();
             }
-            existing.setImagesBase64(base64Images);
+
+            for (MultipartFile img : images) {
+
+                String url =
+                        productImageService.uploadImage(img);
+
+                urls.add(url);
+            }
+
+            existing.setImageUrls(urls);
         }
 
-        // FAQs
-        if (faqsJson != null && !faqsJson.isEmpty()) {
-            List<FAQ> faqList = ProductService.convertFaqJsonToList(faqsJson);
-            existing.setFaqs(faqList);
+        // =========================
+        // FAQ UPDATE
+        // =========================
+
+        if (faqs != null && !faqs.isEmpty()) {
+
+            existing.setFaqs(
+                    ProductService.convertFaqJsonToList(faqs)
+            );
         }
 
-        return ResponseEntity.ok(productService.addProduct(existing));
+        Product updated =
+                productService.save(existing);
+
+        return ResponseEntity.ok(updated);
     }
 
+
+    // =========================
     // DELETE PRODUCT
+    // =========================
+
     @DeleteMapping("/{id}")
-    public void deleteProduct(@PathVariable String id) {
-        productService.deleteProduct(id);
+    public ResponseEntity<?> delete(
+            @PathVariable String id
+    ) {
+
+        Product existing =
+                productService.getById(id);
+
+        if (existing == null) {
+
+            return ResponseEntity.notFound().build();
+        }
+
+        productService.delete(id);
+
+        return ResponseEntity.ok().build();
     }
 }
